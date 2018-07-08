@@ -1,4 +1,4 @@
-# VNR-Dictionary-Filter
+# VNR Dictionary Filter
 Performs various operations on Visual Novel Read (VNR) dictionary files.
 
 # Usage Guide:
