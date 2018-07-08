@@ -14,10 +14,10 @@ DictFilter.exe print
 Details:
    gamespecific   Returns game specific terms. Filteration will be
                   done by File Ids. File Ids can be found from Edit 
-				  Dialog under Game info page. Multiple File Ids 
-				  should be separated by comma.
-   element        Returns terms where <element_name> has value matching
-                  the given <value>. <value> can be a regular expression.
+                  Dialog under Game info page. Multiple File Ids 
+                  should be separated by comma.
+   element        Returns terms where element_name has value matching
+                  the given value. Value can be a regular expression.
    merge          Merges two dictionary files and produces a new file.
                   Both files should be present in current directory.
                   Each file must have a root element as parent to make xml valid.
