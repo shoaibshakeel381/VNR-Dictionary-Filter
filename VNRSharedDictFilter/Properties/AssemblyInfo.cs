@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("VNRSharedDictFilter")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("VNR Shared Dictionary Filter")]
+[assembly: AssemblyDescription("Performs various fileting operations on VNR shared dictionary file")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("VNRSharedDictFilter")]
-[assembly: AssemblyCopyright("Copyright ©  2018")]
+[assembly: AssemblyCompany("Shoib Shakeel")]
+[assembly: AssemblyProduct("VNR Shared Dictionary Filter")]
+[assembly: AssemblyCopyright("Copyright © Shoaib Shakeel 2018")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
