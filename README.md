@@ -27,4 +27,6 @@ Details:
    print          Prints Id, Special, Pattern, Text and Game Id to xml file.
 
    If no parameter is provided, then global terms will be returned.
+
+   NOTE: Disabled terms will be always be ignored.
    </code></pre>
