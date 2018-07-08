@@ -25,15 +25,10 @@ namespace VNRSharedDictFilter
                 {
                     terms += GetGlobalTerms();
                 }
-                else if (args[0].Equals("file_id"))
+                else if (args[0].Equals("gamespecific"))
                 {
                     var gameIds = args[1].Split(',').Select(int.Parse).ToList();
                     terms += GetGameSpecificTerms(gameIds);
-
-                    if (args.Any(a => a.Equals("-g")))
-                    {
-                        terms += GetGlobalTerms();
-                    }
                 }
                 else if (args[0].Equals("print"))
                 {
@@ -74,26 +69,25 @@ namespace VNRSharedDictFilter
         {
             Console.WriteLine("Usage:\n" +
                             "   DictFilter.exe\n" +
-                            "   DictFilter.exe file_id   <id> [-g]\n" +
-                            "   DictFilter.exe element   <element_name> <value>\n" +
-                            "   DictFilter.exe merge     <fileA> <fileB>\n" +
-                            "   DictFilter.exe remove    <file> <file_id>\n" +
+                            "   DictFilter.exe gamespecific   <file_id>\n" +
+                            "   DictFilter.exe element        <element_name> <value>\n" +
+                            "   DictFilter.exe merge          <fileA> <fileB>\n" +
+                            "   DictFilter.exe remove         <file> <file_id>\n" +
                             "   DictFilter.exe print\n\n" +
                             "Details:\n" +
-                            "   file_id   Returns game specific terms.\n" +
-                            "             File Ids can be found from Edit Dialog under Game\n" +
-                            "             info page. Multiple File Ids should be separated\n" +
-                            "             by comma. if -g is sepecified then full dictionary\n" +
-                            "             will be created, including global terms.\n" +
-                            "   element   Returns terms where <element_name> has value matching\n" +
-                            "             the given <value>. <value> can be a regular expression.\n" +
-                            "   merge     Merges two dictionary files and produces a new file.\n" +
-                            "             Both files should be present in current directory.\n" + 
-                            "             Each file must have a root element as parent to make xml valid.\n" +
-                            "   remove    Remove game specific terms from given dict file.\n" +
-                            "             File Ids can be found from Edit Dialog under Game\n" +
-                            "             info page. Multiple File Ids should be separated by comma.\n" +
-                            "   print     Prints Id, Special, Pattern, Text and Game Id to xml file.\n\n" +
+                            "   gamespecific    Returns game specific terms. Filteration will be\n" +
+                            "                   done by File Ids. File Ids can be found from Edit\n" +
+                            "                   Dialog under Game info page. Multiple ids\n" +
+                            "                   should be separated by comma.\n" +
+                            "   element         Returns terms where <element_name> has value matching\n" +
+                            "                   the given <value>. <value> can be a regular expression.\n" +
+                            "   merge           Merges two dictionary files and produces a new file.\n" +
+                            "                   Both files should be present in current directory.\n" + 
+                            "                   Each file must have a root element as parent to make xml valid.\n" +
+                            "   remove          Remove game specific terms from given dict file.\n" +
+                            "                   File Ids can be found from Edit Dialog under Game\n" +
+                            "                   info page. Multiple ids should be separated by comma.\n" +
+                            "   print           Prints Id, Special, Pattern, Text and Game Id to xml file.\n\n" +
                             "   If no parameter is provided, then global terms will be returned.");
         }
 
