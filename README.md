@@ -4,22 +4,22 @@ Performs various operations on Visual Novel Reader (VNR) dictionary files.
 # Usage Guide:
 Input parameter details are as follows:
 <pre><code>
-Usage:                                                                             
+Usage:
    DictFilter.exe                dictionary_file
-   DictFilter.exe gamespecific   dictionary_file game_file_id
-   DictFilter.exe element        dictionary_file element_name value
-   DictFilter.exe merge          dictionary_fileA dictionary_fileB
-   DictFilter.exe remove         dictionary_file file_id
+   DictFilter.exe gamespecific   dictionary_file   game_file_id
+   DictFilter.exe element        dictionary_file   element_name      value
+   DictFilter.exe merge          dictionary_fileA  dictionary_fileB
+   DictFilter.exe remove         dictionary_file   game_file_id
 
 Details:
    gamespecific    Returns game specific terms. Filteration will be
-                   done by File Ids. File Ids can be found from Edit
+                   done by Game File Ids. File Ids can be found from Edit
                    Dialog under Game info page. Multiple ids
                    should be separated by comma.
    element         Returns terms where element_name has value matching
                    the given value. Value can be a regular expression.
-				   Any terms which don't have elemnt information will
-				   be ignored.
+                   Any terms which don't have elemnt information will
+                   be ignored.
    merge           Merges two dictionary files and produces a new file.
                    Both files should be present in current directory.
                    Each file must have a root element as parent to make xml valid.
