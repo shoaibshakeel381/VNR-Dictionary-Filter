@@ -26,6 +26,8 @@ Details:
    remove          Remove game specific terms from given dict file.
                    File Ids can be found from Edit Dialog under Game
                    info page. Multiple ids should be separated by comma.
+                   If file_id is not specified then only disabled terms
+                   will be removed.
 
    If only dictionary file is provided without any other parameters then global
    terms will be returned.
