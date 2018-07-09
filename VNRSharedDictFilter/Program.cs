@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
-using System.Xml.Linq;
 
 namespace VNRSharedDictFilter
 {
@@ -16,53 +15,40 @@ namespace VNRSharedDictFilter
         {
             try
             {
-                string terms = "<?xml version=\"1.0\" encoding=\"utf-8\"?><!-- terms.xml 2018-07-07 13:11-->" +
-                               "<grimoire version=\"1.0\" timestamp=\"0\"><terms>";
-
-                if (args.Length == 0)
+                if (args.Length == 1)
                 {
                     Console.WriteLine("Getting global terms");
-                    terms += GetGlobalTerms();
+                    PrintGlobalTerms(GetFileLocation(args[0]));
                 }
-                else if (args[0].Equals("gamespecific"))
+                else if (args.Length == 3 && args[0].Equals("gamespecific"))
                 {
                     Console.WriteLine("Getting game specific terms");
-                    var gameIds = args[1].Split(',').Select(int.Parse).ToList();
-                    terms += GetGameSpecificTerms(gameIds);
-                }
-                else if (args[0].Equals("print"))
-                {
-                    Console.WriteLine("Getting terms summary");
-                    terms += GetSummary();
+                    var gameIds = args[2].Split(',').Select(int.Parse).ToList();
+                    PrintTermsRelatedToGame(GetFileLocation(args[1]), gameIds, true);
                 }
                 else if (args.Length == 3 && args[0].Equals("remove"))
                 {
                     Console.WriteLine("Removing terms associated with given file id");
                     var gameIds = args[2].Split(',').Select(int.Parse).ToList();
-                    terms += GetTermsUnrelatedToGame(GetFileLocation(args[1]), gameIds);
+                    PrintTermsRelatedToGame(GetFileLocation(args[1]), gameIds, false);
                 }
                 else if (args.Length == 3 && args[0].Equals("merge"))
                 {
                     Console.WriteLine("Merging dictionaries");
                     MergeDictionaryFiles(GetFileLocation(args[1]), GetFileLocation(args[2]));
-                    return;
                 }
-                else if (args.Length == 3 && args[0].Equals("element"))
+                else if (args.Length == 4 && args[0].Equals("element"))
                 {
                     Console.WriteLine("Filtering terms based on given criteria");
-                    var element = args[1];
-                    var value = args[2];
-                    terms += GetMatchingTerms(element, value);
+                    var element = args[2];
+                    var value = args[3];
+                    PrintFilteredTermsByElementValue(GetFileLocation(args[1]), element, value);
                 }
                 else
                 {
                     Console.WriteLine("Invalid input.\n");
                     PrintUsage();
-                    return;
                 }
-
-                terms += "</terms></grimoire>";
-                WriteResults(terms);
             }
             catch (Exception e)
             {
@@ -73,12 +59,12 @@ namespace VNRSharedDictFilter
         private static void PrintUsage()
         {
             Console.WriteLine("Usage:\n" +
-                            "   DictFilter.exe\n" +
-                            "   DictFilter.exe gamespecific   <file_id>\n" +
-                            "   DictFilter.exe element        <element_name> <value>\n" +
-                            "   DictFilter.exe merge          <fileA> <fileB>\n" +
-                            "   DictFilter.exe remove         <file> <file_id>\n" +
-                            "   DictFilter.exe print\n\n" +
+                            "   DictFilter.exe                <dictionary_file>\n" +
+                            "   DictFilter.exe gamespecific   <dictionary_file> <game_file_id>\n" +
+                            "   DictFilter.exe element        <dictionary_file> <element_name> <value>\n" +
+                            "   DictFilter.exe merge          <dictionary_fileA> <dictionary_fileB>\n" +
+                            "   DictFilter.exe remove         <dictionary_file> <file_id>\n" +
+                            "\n" +
                             "Details:\n" +
                             "   gamespecific    Returns game specific terms. Filteration will be\n" +
                             "                   done by File Ids. File Ids can be found from Edit\n" +
@@ -86,157 +72,167 @@ namespace VNRSharedDictFilter
                             "                   should be separated by comma.\n" +
                             "   element         Returns terms where <element_name> has value matching\n" +
                             "                   the given <value>. <value> can be a regular expression.\n" +
+                            "                   Any terms which don't have elemnt information will be \n" + 
+                            "                   ignored.\n" +
                             "   merge           Merges two dictionary files and produces a new file.\n" +
                             "                   Both files should be present in current directory.\n" + 
                             "                   Each file must have a root element as parent to make xml valid.\n" +
                             "   remove          Remove game specific terms from given dict file.\n" +
                             "                   File Ids can be found from Edit Dialog under Game\n" +
                             "                   info page. Multiple ids should be separated by comma.\n" +
-                            "   print           Prints Id, Special, Pattern, Text and Game Id to xml file.\n\n" +
-                            "   If no parameter is provided, then global terms will be returned.\n\n" +
+                            "\n" +
+                            "   If only dictionary file is provided without any other parameters then global\n" +
+                            "   terms will be returned.\n" +
+                            "   If no parameter is provided, then this guide will be printed.\n" +
+                            "\n" +
                             "NOTE: Disabled terms will be always be ignored.");
         }
-
-        private static string GetGameSpecificTerms(ICollection<int> targetGameIds)
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <param name="targetGameIds"></param>
+        /// <param name="specific">if true then game specific terms will be returned.<br/>If false then terms not related to game will be returned.</param>
+        /// <returns></returns>
+        private static void PrintTermsRelatedToGame(string filePath, ICollection<int> targetGameIds, bool specific)
         {
-            int allTermCount = 0, filteredTermCount = 0;
-            var sb = new StringBuilder();
-            var settings = new XmlReaderSettings {ValidationType = ValidationType.None};
-            using (var reader = XmlReader.Create(GetDictionaryFile(), settings))
+            int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
+            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
             {
-                reader.MoveToContent();
-                while (reader.Read())
+                // Write Starting Tags
+                writer.WriteStartDocument();
+                writer.WriteComment(" terms.xml 2018-07-07 18:37");
+                writer.WriteStartElement("grimoire");
+                writer.WriteAttributeString("version", "1.0");
+                writer.WriteAttributeString("timestamp", "0");
+                writer.WriteStartElement("terms");
+
+                using (var reader = XmlReader.Create(filePath, GetXmlReaderSettings()))
                 {
-                    if (reader.NodeType == XmlNodeType.Element)
+                    reader.ReadToFollowing("term");
+
+                    do
                     {
-                        if (reader.Name != "term") continue;
-
-                        if (XNode.ReadFrom(reader) is XElement el)
+                        allTermCount++;
+                        var termXml = reader.ReadOuterXml();
+                        if (IsTermDisabled(termXml))
                         {
-                            allTermCount++;
-                            if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-
-                            var gameId = int.Parse(el.Element("gameId")?.Value ?? "-1");
-                            var isSpecial = bool.Parse(el.Element("special")?.Value ?? "false");
-                            if (isSpecial && targetGameIds.Contains(gameId))
-                            {
-                                sb.Append(el);
-                                filteredTermCount++;
-                            }
+                            disabledTermCount++;
+                            continue;
                         }
-                    }
-                }
-            }
 
-            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}");
-            return sb.ToString();
+                        var gameId = GetGameId(termXml);
+                        var isSpecial = GetIsSpecial(termXml);
+
+                        if (specific)
+                        {
+                            if (!isSpecial || !targetGameIds.Contains(gameId)) continue;
+                        }
+                        else
+                        {
+                            if (isSpecial && targetGameIds.Contains(gameId)) continue;
+                        }
+
+                        writer.WriteRaw(termXml);
+                        filteredTermCount++;
+                    } while (reader.IsStartElement("term"));
+                }
+
+                // Write Ending Tags
+                writer.WriteEndDocument();
+            }
+            
+            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}\nDisabled term count: {disabledTermCount}");
         }
 
-        private static string GetTermsUnrelatedToGame(string filePath, ICollection<int> targetGameIds)
+        private static void PrintGlobalTerms(string filePath)
         {
-            int allTermCount = 0, filteredTermCount = 0;
-            var sb = new StringBuilder();
-            var settings = new XmlReaderSettings { ValidationType = ValidationType.None };
-            using (var reader = XmlReader.Create(filePath, settings))
+            int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
+            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
             {
-                reader.MoveToContent();
-                while (reader.Read())
+                // Write Starting Tags
+                writer.WriteStartDocument();
+                writer.WriteComment(" terms.xml 2018-07-07 18:37");
+                writer.WriteStartElement("grimoire");
+                writer.WriteAttributeString("version", "1.0");
+                writer.WriteAttributeString("timestamp", "0");
+                writer.WriteStartElement("terms");
+
+                using (var reader = XmlReader.Create(filePath, GetXmlReaderSettings()))
                 {
-                    if (reader.NodeType == XmlNodeType.Element)
+                    reader.ReadToFollowing("term");
+
+                    do
                     {
-                        if (reader.Name != "term") continue;
-
-                        if (XNode.ReadFrom(reader) is XElement el)
+                        allTermCount++;
+                        var termXml = reader.ReadOuterXml();
+                        if (IsTermDisabled(termXml))
                         {
-                            allTermCount++;
-                            if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-
-                            var gameId = int.Parse(el.Element("gameId")?.Value ?? "-1");
-                            if (!targetGameIds.Contains(gameId))
-                            {
-                                sb.Append(el);
-                                filteredTermCount++;
-                            }
+                            disabledTermCount++;
+                            continue;
                         }
-                    }
+
+                        if (GetIsSpecial(termXml)) continue;
+
+                        writer.WriteRaw(termXml);
+                        filteredTermCount++;
+                    } while (reader.IsStartElement("term"));
                 }
+
+                // Write Ending Tags
+                writer.WriteEndDocument();
             }
 
-            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}");
-            return sb.ToString();
+            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}\nDisabled term count: {disabledTermCount}");
         }
 
-        private static string GetGlobalTerms()
+        private static void PrintFilteredTermsByElementValue(string filePath, string element, string value)
         {
-            int allTermCount = 0, filteredTermCount = 0;
-            var sb = new StringBuilder();
-            var settings = new XmlReaderSettings { ValidationType = ValidationType.None };
-            using (var reader = XmlReader.Create(GetDictionaryFile(), settings))
+            int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
+            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
             {
-                reader.MoveToContent();
-                while (reader.Read())
+                // Write Starting Tags
+                writer.WriteStartDocument();
+                writer.WriteComment(" terms.xml 2018-07-07 18:37");
+                writer.WriteStartElement("grimoire");
+                writer.WriteAttributeString("version", "1.0");
+                writer.WriteAttributeString("timestamp", "0");
+                writer.WriteStartElement("terms");
+
+                using (var reader = XmlReader.Create(filePath, GetXmlReaderSettings()))
                 {
-                    if (reader.NodeType == XmlNodeType.Element)
+                    reader.ReadToFollowing("term");
+
+                    do
                     {
-                        if (reader.Name != "term") continue;
-
-                        if (XNode.ReadFrom(reader) is XElement el)
+                        allTermCount++;
+                        var termXml = reader.ReadOuterXml();
+                        if (IsTermDisabled(termXml))
                         {
-                            allTermCount++;
-                            if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-
-                            var isSpecial = bool.Parse(el.Element("special")?.Value ?? "false");
-                            if (!isSpecial)
-                            {
-                                sb.Append(el);
-                                filteredTermCount++;
-                            }
+                            disabledTermCount++;
+                            continue;
                         }
-                    }
+
+                        var elemValue = GetElementValue(termXml, element);
+                        if (elemValue == null || !Regex.IsMatch(elemValue, value)) continue;
+
+                        writer.WriteRaw(termXml);
+                        filteredTermCount++;
+                    } while (reader.IsStartElement("term"));
                 }
+
+                // Write Ending Tags
+                writer.WriteEndDocument();
             }
+            
 
-            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}");
-            return sb.ToString();
-        }
-
-        private static string GetMatchingTerms(string element, string value)
-        {
-            int allTermCount = 0, filteredTermCount = 0;
-            var sb = new StringBuilder();
-            var settings = new XmlReaderSettings { ValidationType = ValidationType.None };
-            using (var reader = XmlReader.Create(GetDictionaryFile(), settings))
-            {
-                reader.MoveToContent();
-                while (reader.Read())
-                {
-                    if (reader.NodeType == XmlNodeType.Element)
-                    {
-                        if (reader.Name != "term") continue;
-
-                        if (XNode.ReadFrom(reader) is XElement el)
-                        {
-                            allTermCount++;
-                            if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-
-                            var elem = el.Element(element);
-                            if (elem != null && Regex.IsMatch(elem.Value, value))
-                            {
-                                sb.Append(el);
-                                filteredTermCount++;
-                            }
-                        }
-                    }
-                }
-            }
-
-            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}");
-            return sb.ToString();
+            Console.WriteLine($"Number of terms found: {allTermCount}\nFiltered term count: {filteredTermCount}\nDisabled term count: {disabledTermCount}");
         }
 
         private static void MergeDictionaryFiles(string fileAPath, string fileBPath)
         {
-            int fileATermCount = 0, fileBTermCount = 0;
+            int fileATermCount = 0, fileBTermCount = 0, disabledTermCount = 0;
             using (var writer = new XmlTextWriter("output.xml", Encoding.UTF8))
             {
                 // Write Starting Tags
@@ -248,132 +244,114 @@ namespace VNRSharedDictFilter
                 writer.WriteStartElement("terms");
 
                 // Write FileA
-                var settings = new XmlReaderSettings { ValidationType = ValidationType.None };
-                using (var reader = XmlReader.Create(fileAPath, settings))
+                using (var reader = XmlReader.Create(fileAPath, GetXmlReaderSettings()))
                 {
-                    //reader.MoveToContent();
-                    while (reader.Read())
-                    {
-                        if (reader.IsStartElement("term"))
-                        {
-                            if (bool.Parse(reader.GetAttribute("disabled") ?? "false")) continue;
+                    reader.ReadToFollowing("term");
 
-                            fileATermCount++;
-                            string xml = reader.ReadOuterXml();
-                            writer.WriteRaw(xml);
+                    do
+                    {
+                        var termXml = reader.ReadOuterXml();
+                        if (IsTermDisabled(termXml))
+                        {
+                            disabledTermCount++;
+                            continue;
                         }
-                    }
+                        
+                        writer.WriteRaw(termXml);
+                        fileATermCount++;
+                    } while (reader.IsStartElement("term"));
                 }
 
                 // Write FileB
-                using (var reader = XmlReader.Create(fileBPath, settings))
+                using (var reader = XmlReader.Create(fileBPath, GetXmlReaderSettings()))
                 {
-                    reader.MoveToContent();
-                    while (reader.Read())
+                    reader.ReadToFollowing("term");
+
+                    do
                     {
-                        if (reader.NodeType == XmlNodeType.Element)
+                        var termXml = reader.ReadOuterXml();
+                        if (IsTermDisabled(termXml))
                         {
-                            if (reader.Name != "term") continue;
-
-                            if (XNode.ReadFrom(reader) is XElement el)
-                            {
-                                if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-
-                                fileBTermCount++;
-                                writer.WriteRaw(el.ToString());
-                            }
+                            disabledTermCount++;
+                            continue;
                         }
-                    }
+
+                        writer.WriteRaw(termXml);
+                        fileBTermCount++;
+                    } while (reader.IsStartElement("term"));
                 }
 
                 // Write Ending Tags
                 //writer.WriteEndElement();
                 writer.WriteEndDocument();
             }
-            Console.WriteLine($"Terms Found:\nFile A: {fileATermCount}\nFile B: {fileBTermCount}");
+            Console.WriteLine($"Terms Found:\nFile A: {fileATermCount}\nFile B: {fileBTermCount}\nDisabled term count: {disabledTermCount}");
         }
-
-        /// <summary>
-        /// This will get some of the columns to file
-        /// </summary>
-        /// <returns></returns>
-        private static string GetSummary()
-        {
-            int allTermCount = 0, filteredTermCount = 0;
-            var sb = new StringBuilder();
-            var settings = new XmlReaderSettings { ValidationType = ValidationType.None };
-            using (var reader = XmlReader.Create(GetDictionaryFile(), settings))
-            {
-                reader.MoveToContent();
-                while (reader.Read())
-                {
-                    if (reader.NodeType == XmlNodeType.Element)
-                    {
-                        if (reader.Name != "term") continue;
-
-                        if (XNode.ReadFrom(reader) is XElement el)
-                        {
-                            allTermCount++;
-                            if (bool.Parse(el.Attribute("disabled")?.Value ?? "false")) continue;
-                            filteredTermCount++;
-                            // Id
-                            sb.Append("<item "+ el.Attribute("id") +" ");
-
-                            // Special
-                            sb.Append("special=\"");
-                            if (el.Element("special") != null)
-                            {
-                                sb.Append(el.Element("special")?.Value + "\" ");
-                            }
-                            else
-                            {
-                                sb.Append("false\" ");
-                            }
-
-                            // Pattern
-                            sb.Append("pattern=\"" + el.Element("pattern")?.Value + "\" ");
-
-                            // Text
-                            sb.Append("text=\"" + el.Element("text")?.Value + "\" ");
-
-                            // Game Id
-                            sb.Append("gameId=\"" + el.Element("gameId")?.Value + "\"");
-
-                            // close
-                            sb.Append("></item>\n\r\n");
-                        }
-                    }
-                }
-            }
-
-            Console.WriteLine($"Number of terms found: {allTermCount}\nDisabled term count: {allTermCount - filteredTermCount}");
-            return sb.ToString();
-        }
-
-        private static void WriteResults(string termsXml)
-        {
-            var replace = Regex.Replace(termsXml, @"\r\n|\r|\n", "");
-            replace = Regex.Replace(replace, @"[ ]{2,}", " ");
-            using (var writer = new XmlTextWriter("output.xml", Encoding.UTF8))
-            {
-                if (writer.Settings != null)
-                {
-                    writer.Settings.CheckCharacters = false;
-                    writer.Settings.DoNotEscapeUriAttributes = true;
-                }
-                writer.WriteRaw(replace);
-            }
-        }
-
-        private static string GetDictionaryFile()
-        {
-            return GetFileLocation("Dictionary.xml");
-        }
-
+        
         private static string GetFileLocation(string fileName)
         {
             var currentPath = Directory.GetParent(Assembly.GetExecutingAssembly().Location);
             return currentPath.FullName + "\\" + fileName;
+        }
+
+        private static XmlReaderSettings GetXmlReaderSettings()
+        {
+            return new XmlReaderSettings
+            {
+                ValidationType = ValidationType.None
+            };
+        }
+
+        private static XmlDocument GetXmlDocument(string xml)
+        {
+            var document = new XmlDocument();
+            document.LoadXml(xml);
+
+            return document;
+        }
+
+        private static string GetElementValue(string xml, string element)
+        {
+            var elems = GetXmlDocument(xml).GetElementsByTagName(element);
+            if (elems.Count > 0)
+            {
+                return elems[0].InnerText;
+            }
+
+            return null;
+        }
+
+        private static string GetAttributeValue(string xml, string attr)
+        {
+            var doc = GetXmlDocument(xml);
+            var attribute = doc.DocumentElement?.Attributes[attr];
+            return attribute?.Value;
+        }
+
+        private static bool IsTermDisabled(string xml)
+        {
+            var val = GetAttributeValue(xml, "disabled");
+            return !string.IsNullOrWhiteSpace(val) && bool.Parse(val);
+        }
+
+        private static int GetGameId(string xml)
+        {
+            var gameId = -1;
+
+            var value = GetElementValue(xml, "gameId");
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                gameId = int.Parse(value);
+            }
+
+            return gameId;
+        }
+
+        private static bool GetIsSpecial(string xml)
+        {
+            var value = GetElementValue(xml, "special");
+
+            return !string.IsNullOrWhiteSpace(value) && bool.Parse(value);
         }
     }
 }
