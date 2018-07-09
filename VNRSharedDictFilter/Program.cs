@@ -26,11 +26,18 @@ namespace VNRSharedDictFilter
                     var gameIds = args[2].Split(',').Select(int.Parse).ToList();
                     PrintTermsRelatedToGame(GetFileLocation(args[1]), gameIds, true);
                 }
-                else if (args.Length == 3 && args[0].Equals("remove"))
+                else if (args.Length >= 2 && args[0].Equals("remove"))
                 {
-                    Console.WriteLine("Removing terms associated with given file id");
-                    var gameIds = args[2].Split(',').Select(int.Parse).ToList();
-                    PrintTermsRelatedToGame(GetFileLocation(args[1]), gameIds, false);
+                    Console.WriteLine("Removing terms");
+                    if (args.Length == 3)
+                    {
+                        var gameIds = args[2].Split(',').Select(int.Parse).ToList();
+                        PrintTermsRelatedToGame(GetFileLocation(args[1]), gameIds, false);
+                    }
+                    else
+                    {
+                        PrintFilteredTermsByElementValue(GetFileLocation(args[1]), "term", ".*");
+                    }
                 }
                 else if (args.Length == 3 && args[0].Equals("merge"))
                 {
@@ -46,7 +53,6 @@ namespace VNRSharedDictFilter
                 }
                 else
                 {
-                    Console.WriteLine("Invalid input.\n");
                     PrintUsage();
                 }
             }
@@ -59,33 +65,35 @@ namespace VNRSharedDictFilter
         private static void PrintUsage()
         {
             Console.WriteLine("Usage:\n" +
-                            "   DictFilter.exe                <dictionary_file>\n" +
-                            "   DictFilter.exe gamespecific   <dictionary_file> <game_file_id>\n" +
-                            "   DictFilter.exe element        <dictionary_file> <element_name> <value>\n" +
-                            "   DictFilter.exe merge          <dictionary_fileA> <dictionary_fileB>\n" +
-                            "   DictFilter.exe remove         <dictionary_file> <file_id>\n" +
-                            "\n" +
-                            "Details:\n" +
-                            "   gamespecific    Returns game specific terms. Filteration will be\n" +
-                            "                   done by File Ids. File Ids can be found from Edit\n" +
-                            "                   Dialog under Game info page. Multiple ids\n" +
-                            "                   should be separated by comma.\n" +
-                            "   element         Returns terms where <element_name> has value matching\n" +
-                            "                   the given <value>. <value> can be a regular expression.\n" +
-                            "                   Any terms which don't have elemnt information will be \n" + 
-                            "                   ignored.\n" +
-                            "   merge           Merges two dictionary files and produces a new file.\n" +
-                            "                   Both files should be present in current directory.\n" + 
-                            "                   Each file must have a root element as parent to make xml valid.\n" +
-                            "   remove          Remove game specific terms from given dict file.\n" +
-                            "                   File Ids can be found from Edit Dialog under Game\n" +
-                            "                   info page. Multiple ids should be separated by comma.\n" +
-                            "\n" +
-                            "   If only dictionary file is provided without any other parameters then global\n" +
-                            "   terms will be returned.\n" +
-                            "   If no parameter is provided, then this guide will be printed.\n" +
-                            "\n" +
-                            "NOTE: Disabled terms will be always be ignored.");
+                              "   DictFilter.exe                <dictionary_file>\n" +
+                              "   DictFilter.exe gamespecific   <dictionary_file> <game_file_id>\n" +
+                              "   DictFilter.exe element        <dictionary_file> <element_name> <value>\n" +
+                              "   DictFilter.exe merge          <dictionary_fileA> <dictionary_fileB>\n" +
+                              "   DictFilter.exe remove         <dictionary_file> [file_id]\n" +
+                              "\n" +
+                              "Details:\n" +
+                              "   gamespecific    Returns game specific terms. Filteration will be\n" +
+                              "                   done by File Ids. File Ids can be found from Edit\n" +
+                              "                   Dialog under Game info page. Multiple ids\n" +
+                              "                   should be separated by comma.\n" +
+                              "   element         Returns terms where <element_name> has value matching\n" +
+                              "                   the given <value>. <value> can be a regular expression.\n" +
+                              "                   Any terms which don't have elemnt information will be \n" + 
+                              "                   ignored.\n" +
+                              "   merge           Merges two dictionary files and produces a new file.\n" +
+                              "                   Both files should be present in current directory.\n" + 
+                              "                   Each file must have a root element as parent to make xml valid.\n" +
+                              "   remove          Remove game specific terms from given dict file.\n" +
+                              "                   File Ids can be found from Edit Dialog under Game\n" +
+                              "                   info page. Multiple ids should be separated by comma.\n" +
+                              "                   If file_id is not specified then only disabled terms\n" +
+                              "                   will be removed.\n" +
+                              "\n" +
+                              "   If only dictionary file is provided without any other parameters then global\n" +
+                              "   terms will be returned.\n" +
+                              "   If no parameter is provided, then this guide will be printed.\n" +
+                              "\n" +
+                              "NOTE: Disabled terms will be always be ignored.");
         }
         
         /// <summary>
@@ -98,7 +106,7 @@ namespace VNRSharedDictFilter
         private static void PrintTermsRelatedToGame(string filePath, ICollection<int> targetGameIds, bool specific)
         {
             int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
-            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
+            using (var writer = new XmlTextWriter(GetOutputFileName(), Encoding.UTF8))
             {
                 // Write Starting Tags
                 writer.WriteStartDocument();
@@ -149,7 +157,7 @@ namespace VNRSharedDictFilter
         private static void PrintGlobalTerms(string filePath)
         {
             int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
-            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
+            using (var writer = new XmlTextWriter(GetOutputFileName(), Encoding.UTF8))
             {
                 // Write Starting Tags
                 writer.WriteStartDocument();
@@ -190,7 +198,7 @@ namespace VNRSharedDictFilter
         private static void PrintFilteredTermsByElementValue(string filePath, string element, string value)
         {
             int allTermCount = 0, filteredTermCount = 0, disabledTermCount = 0;
-            using (var writer = new XmlTextWriter("gamedic.xml", Encoding.UTF8))
+            using (var writer = new XmlTextWriter(GetOutputFileName(), Encoding.UTF8))
             {
                 // Write Starting Tags
                 writer.WriteStartDocument();
@@ -233,7 +241,7 @@ namespace VNRSharedDictFilter
         private static void MergeDictionaryFiles(string fileAPath, string fileBPath)
         {
             int fileATermCount = 0, fileBTermCount = 0, disabledTermCount = 0;
-            using (var writer = new XmlTextWriter("output.xml", Encoding.UTF8))
+            using (var writer = new XmlTextWriter(GetOutputFileName(), Encoding.UTF8))
             {
                 // Write Starting Tags
                 writer.WriteStartDocument();
@@ -352,6 +360,11 @@ namespace VNRSharedDictFilter
             var value = GetElementValue(xml, "special");
 
             return !string.IsNullOrWhiteSpace(value) && bool.Parse(value);
+        }
+
+        private static string GetOutputFileName()
+        {
+            return "DictFilterOut.xml";
         }
     }
 }
